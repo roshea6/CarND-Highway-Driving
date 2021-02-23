@@ -7,6 +7,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "helpers.h"
 #include "json.hpp"
+#include "spline.h"
 
 // for convenience
 using nlohmann::json;
@@ -49,6 +50,12 @@ int main() {
     map_waypoints_dx.push_back(d_x);
     map_waypoints_dy.push_back(d_y);
   }
+  
+  // Start in the center lane. Left = 0, center = 1, right = 2
+  int lane = 1;
+  
+  // Set the standard speed to hit in mph
+  double target_vel = 49.5;
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy]
@@ -97,6 +104,24 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
+          
+
+          double dist_inc = 0.5;
+          for (int i = 0; i < 50; ++i) 
+          {
+            // Move the car forward in the lane by the distance increment
+            double next_s = car_s + dist_inc*(i+1);
+            // Have the car stay in the middle lane
+            double next_d = 6;
+            
+            // Get the x and y coordinates from the frenet coordinates
+            auto xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            
+            // Push the x and y values into their resoective vectors
+            next_x_vals.push_back(xy[0]);
+            next_y_vals.push_back(xy[1]);
+               
+          }
 
 
           msgJson["next_x"] = next_x_vals;
