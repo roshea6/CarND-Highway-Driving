@@ -99,8 +99,7 @@ int main() {
           // Set the standard speed to hit in mph
           double target_vel = 49.5;
 
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
@@ -109,6 +108,7 @@ int main() {
           
           // Used to determine how many more points we need to generate for a full path
           int prev_path_size = previous_path_x.size();
+          
           
           // Widely spaced points that will be used to generate a spline
           vector<double> spline_pts_x;
@@ -149,10 +149,10 @@ int main() {
             
             // Add the two points onto the spline vector
             spline_pts_x.push_back(prev_ref_x);
-            spline_pts_x.push_back(car_x);
+            spline_pts_x.push_back(ref_x);
             
             spline_pts_y.push_back(prev_ref_y);
-            spline_pts_y.push_back(car_y);
+            spline_pts_y.push_back(ref_y);
             
           }
           
@@ -160,6 +160,8 @@ int main() {
           vector<double> s_30_point = getXY(car_s+30, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> s_60_point = getXY(car_s+60, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> s_90_point = getXY(car_s+90, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          
+          
           
           // Push the generated points onto the spline point vector
           spline_pts_x.push_back(s_30_point[0]);
@@ -173,7 +175,7 @@ int main() {
           // Transform all the point in the spline points vector into the car's frame of reference
           for(int i = 0; i < spline_pts_x.size(); i++)
           {
-            // Shift the car's refernce angle to 0
+            // Shift the car's reference angle to 0
             double shift_x = spline_pts_x[i] - ref_x;
             double shift_y = spline_pts_y[i] - ref_y;
             
@@ -183,23 +185,68 @@ int main() {
           
           // Create a spline
           tk::spline sp;
-
-//           double dist_inc = 0.5;
-//           for (int i = 0; i < 50; ++i) 
-//           {
-//             // Move the car forward in the lane by the distance increment
-//             double next_s = car_s + dist_inc*(i+1);
-//             // Have the car stay in the middle lane
-//             double next_d = 6;
+          
+          // Add the points to the spline
+          sp.set_points(spline_pts_x, spline_pts_y);
+          
+          vector<double> next_x_vals;
+          vector<double> next_y_vals;
+          
+          // Add the points from the previous path to the next path
+          for(int i = 0; i < prev_path_size; i ++)
+          {
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
+          }
+          
+          // Choose target distance in front of the car
+          double target_x = 30.0;
+          double target_y = sp(target_x);
+          // Calculate the distance using the pythagoreum theorum
+          double target_dist = sqrt(pow(target_x, 2) + pow(target_y, 2));
+          
+          // x location in front of the car. Will be updated for every new point
+          double x_loc = 0.0;
+          
+          // Determine the number of points that need to be generated to cover the distance
+          double N = (target_dist/(.02*target_vel/2.24)); // Divide velocity by 2.24 to convert from mph to meters per second
+          
+          // Calculate the x increment by dividing the total distance that needs to be covered by the number of points that will be generated across that distance
+          double x_inc = target_x/N;
+          
+          // Fill in the missing points using the newly generated points
+          for(int i = 1; i <= 50 - previous_path_x.size(); i++)
+          {
+            // Generate the next x point by adding the increment to the previous location
+            double x_point = x_loc + x_inc;
             
-//             // Get the x and y coordinates from the frenet coordinates
-//             auto xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            // Calculate the y value associated with the x input on the spline
+            double y_point = sp(x_point);
             
-//             // Push the x and y values into their resoective vectors
-//             next_x_vals.push_back(xy[0]);
-//             next_y_vals.push_back(xy[1]);
-               
-//           }
+            // Update the x location with the newly calculated point
+            x_loc = x_point;
+            
+            // DIFFERENT FROM REF_X AND REF_Y. ref_x and ref_y should hold the first points on the path whether they are from the car's position or the las point in the previous path
+            double x_ref = x_point;
+            double y_ref = y_point;
+            
+            // Untransform the points so they're in the global coordinate frame
+            // Rotation
+            x_point = (x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw));
+            y_point = (x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw));
+            
+            // Translation
+            x_point += ref_x;
+            y_point += ref_y;
+            
+            
+            
+            // Add the point to the point lists
+            next_x_vals.push_back(x_point);
+            next_y_vals.push_back(y_point);
+            
+            
+          }
 
 
           msgJson["next_x"] = next_x_vals;
