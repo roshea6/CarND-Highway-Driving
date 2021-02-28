@@ -90,6 +90,8 @@ int main() {
           // Sensor Fusion Data, a list of all other cars on the same side 
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
+          // Each entry in sensor_fusion is data for a vechicle in a vector with the following order
+          // [id, x, y, vx, vy, s, d]
 
           json msgJson;
           
@@ -105,10 +107,57 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
-          
           // Used to determine how many more points we need to generate for a full path
           int prev_path_size = previous_path_x.size();
           
+          // Lane changing and obstacle avoidance
+          bool car_in_front = false;
+          bool prep_for_lane_change = false;
+          double new_vel = car_speed;
+          
+          // If there were items  leftover in the previous path then use the last one
+          if(prev_path_size > 0)
+          {
+            car_s = end_path_s;   
+          }
+          
+          // Loop throug the detected cars to determine if any are directly in front of our car and close
+          for(int i = 0; i < sensor_fusion.size(); i++)
+          {
+            // Extract the vehicle data
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double other_s = sensor_fusion[i][5];
+            double other_d = sensor_fusion[i][6];
+            
+            // Check if the car is in our lane by checking its d value
+            if((other_d < lane*4 + 4) and (other_d > lane*4))
+            {
+              // Check if the car is in front of us
+              if(other_s > car_s)
+              {
+                // Check if the car is too close
+                if(other_s - car_s < 20)
+                {
+                  // Lower our target velocity so we don't hit the car in front of us
+                  // TODO: It would probably be better to slowly decrement this instead
+                  new_vel = 35;
+                  prep_for_lane_change = true;
+                }
+                else
+                {
+                  if(new_vel+2 < 49.5)
+                  {
+                    new_vel += 2;
+                  }                  
+                }                
+              }              
+            }            
+          }
+          
+          
+          // Path generation
+          target_vel = new_vel;
           
           // Widely spaced points that will be used to generate a spline
           vector<double> spline_pts_x;
