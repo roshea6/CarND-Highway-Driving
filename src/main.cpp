@@ -51,10 +51,14 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
   
-  
+  // Start in the center lane. Left = 0, center = 1, right = 2
+  int lane = 1;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
+  // Set the standard speed to hit in mph
+  double target_vel = 49.5;
+
+  h.onMessage([&target_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+               &map_waypoints_dx,&map_waypoints_dy, &lane]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -95,13 +99,6 @@ int main() {
 
           json msgJson;
           
-          // Start in the center lane. Left = 0, center = 1, right = 2
-          int lane = 1;
-
-          // Set the standard speed to hit in mph
-          double target_vel = 49.5;
-
-          
 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
@@ -121,7 +118,7 @@ int main() {
             car_s = end_path_s;   
           }
           
-          // Loop throug the detected cars to determine if any are directly in front of our car and close
+          // Loop through the detected cars to determine if any are directly in front of our car and close
           for(int i = 0; i < sensor_fusion.size(); i++)
           {
             // Extract the vehicle data
@@ -133,31 +130,40 @@ int main() {
             // Check if the car is in our lane by checking its d value
             if((other_d < lane*4 + 4) and (other_d > lane*4))
             {
+              // Calculate the velocity of the other vehicle
+              double other_vel = sqrt(pow(vx, 2) + pow(vy, 2));
+              
+              other_s += (double)prev_path_size * 0.02 * other_vel; // use previous points to project s value onward
+                
               // Check if the car is in front of us
               if(other_s > car_s)
               {
                 // Check if the car is too close
-                if(other_s - car_s < 20)
+                if(other_s - car_s < 25)
                 {
-                  // Lower our target velocity so we don't hit the car in front of us
-                  // TODO: It would probably be better to slowly decrement this instead
-                  new_vel = 35;
+                  // Set flag for being too close to the car in front
+                  // Also set flag to look for lane change so we can get around the slow car
+                  car_in_front = true;
                   prep_for_lane_change = true;
-                }
-                else
-                {
-                  if(new_vel+2 < 49.5)
-                  {
-                    new_vel += 2;
-                  }                  
-                }                
+                }        
               }              
             }            
           }
           
+          // TODO: If the change lane flag is set then check if there are cars in the way of changing lanes
+          
+          if(car_in_front)
+          {
+            target_vel -= .224;
+          }
+          else if(target_vel < 49.5)
+          {
+            target_vel += .224;
+          }
+          
           
           // Path generation
-          target_vel = new_vel;
+//           target_vel = new_vel;
           
           // Widely spaced points that will be used to generate a spline
           vector<double> spline_pts_x;
