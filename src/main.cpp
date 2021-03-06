@@ -112,7 +112,10 @@ int main() {
           bool prep_for_lane_change = false;
           double new_vel = car_speed;
           
-          // If there were items  leftover in the previous path then use the last one
+          // Save the current position of the car for lane changing purposes
+          double current_car_s = car_s;
+          
+          // If there were items leftover in the previous path then use the last one
           if(prev_path_size > 0)
           {
             car_s = end_path_s;   
@@ -151,6 +154,68 @@ int main() {
           }
           
           // TODO: If the change lane flag is set then check if there are cars in the way of changing lanes
+          bool left_car_too_close = false;
+          bool right_car_too_close = false;
+          int num_cars_left = 0;
+          int num_cars_right = 0; 
+          
+          if(prep_for_lane_change == true)
+          {
+            for(int i = 0; i < sensor_fusion.size(); i++)
+            {
+              // Grab the cars location in the lane
+              double other_s = sensor_fusion[i][5];
+              double other_d = sensor_fusion[i][6];
+              int other_lane;
+              
+              // Determine which lane the other car is in
+              if(other_d < 6)
+                other_lane = 0;
+              else if(other_d > 6 and other_d < 12)
+                other_lane = 1;
+              else
+                other_lane = 2;
+              
+              // Check if the car in the other lane is too close
+              // TODO: Incorporate speed into this to project the other car forward
+              // Might be able to go back to using the last point of the previous path for car s then
+              if(other_s < current_car_s + 15 and other_s > current_car_s - 15)
+              {
+                if(other_lane == lane-1)
+                {
+                  left_car_too_close = true;
+                  num_cars_left++;
+                }
+                else if(other_lane == lane+1)
+                {
+                  right_car_too_close = true;
+                  num_cars_right++;
+                }
+              }
+              else
+              {
+                if(other_lane == lane-1)
+                {
+                  num_cars_left++;
+                }
+                else if(other_lane == lane+1)
+                {
+                  num_cars_right++;
+                }
+              }
+            }
+            // If conditions are right then change lanes. Prioritize left lane changes
+            if(left_car_too_close == false and lane != 0)
+            {
+              lane--;
+            }
+            else if(right_car_too_close == false and lane != 2)
+            {
+              lane++;
+            }
+          }
+          
+          
           
           if(car_in_front)
           {
