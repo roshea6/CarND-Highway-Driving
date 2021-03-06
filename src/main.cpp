@@ -112,8 +112,6 @@ int main() {
           bool prep_for_lane_change = false;
           double new_vel = car_speed;
           
-          // Save the current position of the car for lane changing purposes
-          double current_car_s = car_s;
           
           // If there were items leftover in the previous path then use the last one
           if(prev_path_size > 0)
@@ -164,58 +162,65 @@ int main() {
             for(int i = 0; i < sensor_fusion.size(); i++)
             {
               // Grab the cars location in the lane
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
               double other_s = sensor_fusion[i][5];
               double other_d = sensor_fusion[i][6];
               int other_lane;
               
               // Determine which lane the other car is in
-              if(other_d < 6)
+              if(other_d < 4)
                 other_lane = 0;
-              else if(other_d > 6 and other_d < 12)
+              else if(other_d > 4 and other_d < 8)
                 other_lane = 1;
               else
                 other_lane = 2;
               
               // Check if the car in the other lane is too close
-              // TODO: Incorporate speed into this to project the other car forward
-              // Might be able to go back to using the last point of the previous path for car s then
-              if(other_s < current_car_s + 15 and other_s > current_car_s - 15)
+              
+              // Calculate the velocity of the other vehicle
+              double other_vel = sqrt(pow(vx, 2) + pow(vy, 2));
+              
+              other_s += (double)prev_path_size * 0.02 * other_vel; // use previous points to project s value onward
+              
+              if(other_s < car_s + 20 and other_s > car_s - 10)
               {
                 if(other_lane == lane-1)
                 {
                   left_car_too_close = true;
-                  num_cars_left++;
+//                   num_cars_left++;
                 }
                 else if(other_lane == lane+1)
                 {
                   right_car_too_close = true;
-                  num_cars_right++;
+//                   num_cars_right++;
                 }
               }
-              else
-              {
-                if(other_lane == lane-1)
-                {
-                  num_cars_left++;
-                }
-                else if(other_lane == lane+1)
-                {
-                  num_cars_right++;
-                }
-              }
+//               else
+//               {
+//                 if(other_lane == lane-1)
+//                 {
+//                   num_cars_left++;
+//                 }
+//                 else if(other_lane == lane+1)
+//                 {
+//                   num_cars_right++;
+//                 }
+//               }
             }
-            // If conditions are right then change lanes. Prioritize left lane changes
-            if(left_car_too_close == false and lane != 0)
-            {
-              lane--;
-            }
-            else if(right_car_too_close == false and lane != 2)
-            {
-              lane++;
-            }
+            
           }
           
-          
+          // If conditions are right then change lanes. Prioritize left lane changes
+          if(prep_for_lane_change == true and left_car_too_close == false and lane != 0)
+          {
+            lane--;
+          }
+          else if(prep_for_lane_change == true and right_car_too_close == false and lane != 2)
+          {
+            lane++;
+          }
+                    
           
           if(car_in_front)
           {
@@ -226,9 +231,6 @@ int main() {
             target_vel += .224;
           }
           
-          
-          // Path generation
-//           target_vel = new_vel;
           
           // Widely spaced points that will be used to generate a spline
           vector<double> spline_pts_x;
