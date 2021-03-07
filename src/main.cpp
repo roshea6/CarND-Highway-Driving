@@ -186,7 +186,6 @@ int main() {
               other_s += (double)prev_path_size * 0.02 * other_vel; // use previous points to project s value onward
               
               // Check farther in front so that we don't get stuck behind other cars in the lane we might want to change into
-              // TODO: look back farther to avoid collisions when another car is coming up fast
               if(other_s < car_s + 20 and other_s > car_s - 15)
               {
                 if(other_lane == lane-1)
@@ -224,7 +223,6 @@ int main() {
 
           }
           
-          // TODO: Increase these values to avoid rear ending. 1.5 times current val might be good
           // Decrease our speed if there's a car close in front of us 
           if(car_in_front)
           {
