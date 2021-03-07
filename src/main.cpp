@@ -54,10 +54,11 @@ int main() {
   // Start in the center lane. Left = 0, center = 1, right = 2
   int lane = 1;
 
-  // Set the standard speed to hit in mph
-  double target_vel = 49.5;
+  // Set the standard speed to hit in mph. Start at 0 so we can properly accelerate up to the max velocity in the beginning
+  double target_vel = 0;
+  double max_vel = 49.5;
 
-  h.onMessage([&target_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+  h.onMessage([&target_vel, &max_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &lane]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -140,7 +141,8 @@ int main() {
               if(other_s > car_s)
               {
                 // Check if the car is too close
-                if(other_s - car_s < 25)
+                // TODO: Tune this val
+                if(other_s - car_s < 27.5)
                 {
                   // Set flag for being too close to the car in front
                   // Also set flag to look for lane change so we can get around the slow car
@@ -151,11 +153,11 @@ int main() {
             }            
           }
           
-          // TODO: If the change lane flag is set then check if there are cars in the way of changing lanes
+          // If the change lane flag is set then check if there are cars in the way of changing lanes
           bool left_car_too_close = false;
           bool right_car_too_close = false;
-          int num_cars_left = 0;
-          int num_cars_right = 0; 
+//           int num_cars_left = 0;
+//           int num_cars_right = 0; 
           
           if(prep_for_lane_change == true)
           {
@@ -183,7 +185,9 @@ int main() {
               
               other_s += (double)prev_path_size * 0.02 * other_vel; // use previous points to project s value onward
               
-              if(other_s < car_s + 20 and other_s > car_s - 10)
+              // Check farther in front so that we don't get stuck behind other cars in the lane we might want to change into
+              // TODO: look back farther to avoid collisions when another car is coming up fast
+              if(other_s < car_s + 20 and other_s > car_s - 15)
               {
                 if(other_lane == lane-1)
                 {
@@ -208,27 +212,28 @@ int main() {
 //                 }
 //               }
             }
-            
+            // If conditions are right then change lanes. Prioritize left lane changes
+            if(left_car_too_close == false and lane != 0)
+            {
+              lane--;
+            }
+            else if(right_car_too_close == false and lane != 2)
+            {
+              lane++;
+            }
+
           }
           
-          // If conditions are right then change lanes. Prioritize left lane changes
-          if(prep_for_lane_change == true and left_car_too_close == false and lane != 0)
-          {
-            lane--;
-          }
-          else if(prep_for_lane_change == true and right_car_too_close == false and lane != 2)
-          {
-            lane++;
-          }
-                    
-          
+          // TODO: Increase these values to avoid rear ending. 1.5 times current val might be good
+          // Decrease our speed if there's a car close in front of us 
           if(car_in_front)
           {
-            target_vel -= .224;
+            target_vel -= .336;
           }
-          else if(target_vel < 49.5)
+          // Increase speed if we have open road and are below the limit
+          else if(target_vel < max_vel)
           {
-            target_vel += .224;
+            target_vel += .336;
           }
           
           
