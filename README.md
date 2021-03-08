@@ -92,54 +92,122 @@ A really helpful resource for doing this project and creating smooth trajectorie
     git checkout e94b6e1
     ```
 
-## Editor Settings
+## Results
+My code running on the simulator can be seen in the video below. It successfully completes an entire lap around the course without any incidents. There are times when it slows down a bit too much in complex scenarios but I might be able to fix this with more tuning of acceleration parameters.
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+https://youtu.be/HHE7dbg77oo 
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+## Code Explanation
+### Path Generation
+The spline library mentioned above was heavily used during the path generation portion of the code. Five points were passed into the spline object in order to create a polynomial that best fit the five points. If the previous path had more than two unused points left in it then the first two points for the spline are taken from the last two points of the previous path. If the previous path had less than 2 unused points in it then the current position of the car and the previous position of the car are used as the first two points for the spline. 
 
-## Code Style
+To generate the last three points for the spline I picked three points in front of the car spaced 30 meters apart as shown in the code below.
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+``` c++
+// Generate points along the current lane that you are in by incrementing the s value of the car
+vector<double> s_30_point = getXY(car_s+30, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> s_60_point = getXY(car_s+60, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+vector<double> s_90_point = getXY(car_s+90, 4*lane + 2, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+```
 
-## Project Instructions and Rubric
+Because we are using Frenet coordinates we can get a further ahead point in the car's current lane by simply adding a desired distance to the car's current s value while keeping the d value the same. 
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+After all 5 points for the spline are generated they are used to create the actual spline object as seen below.
+``` c++
+// Create a spline
+tk::spline sp;
+
+// Add the points to the spline
+sp.set_points(spline_pts_x, spline_pts_y);
+```
+
+Before the spline object is used to generate points for the path, the previous path's unused points are added to the next path so the car can continue on it's current path until it needs new points. After the old path points have been added, the spline object is used to genrate (50 - the size of the leftover points) more points for the path. 
+
+Once all 50 points have been created they are sent to the simulator where the car will sequntially move through them. 
 
 
-## Call for IDE Profiles Pull Requests
+### Lane Changing and Driving Logic
+The main factor behind both speed and lane changing was the presence of a slow moving car in front of our vehicle. In order to detect a slower moving car in front of us, the sensor_fusion variable was parsed to check the location of each of the detected vehicles around our car. If the detected car was in our lane, ahead of us, and within a certain distance threshold then the car would slow down and prepare to change lanes. The code for this can be seen below.
 
-Help your fellow students!
+``` c++
+// Check if the car is in our lane by checking its d value
+if((other_d < lane*4 + 4) and (other_d > lane*4))
+{
+  // Calculate the velocity of the other vehicle
+  double other_vel = sqrt(pow(vx, 2) + pow(vy, 2));
+  
+  other_s += (double)prev_path_size * 0.02 * other_vel; // use previous points to project s value onward
+    
+  // Check if the car is in front of us
+  if(other_s > car_s)
+  {
+    // Check if the car is too close
+    // TODO: Tune this val
+    if(other_s - car_s < 27.5)
+    {
+      // Set flag for being too close to the car in front
+      // Also set flag to look for lane change so we can get around the slow car
+      car_in_front = true;
+      prep_for_lane_change = true;
+    }        
+  }              
+}
+```
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
+The forward projection of the other vehicles s value was very important because it let us know where the car would be in the future after we had actually executed our path. Using the current value for the car for future decision making led to a number of close calls and even collisions during initial testing. The safety distance value between the two cars was experimented with to try to find the optimal distance but this can likely be improved further. It might also be good to make this value a function of the car's speed in order to accurately reflect how quickly our car might close this distance. 
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
+After the prep_for_lane_change flag has been set, the sensor_fusion variable is looped through again to determine if any cars are to our left or right that would prevent us from safely changing lanes. The s value of the other car is compared to our car's s value and if it is in the unsafe window around our car a flag is set to prevent a change into that lane. The code for this can be seen below.
 
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
+``` c++
+// Check farther in front so that we don't get stuck behind other cars in the lane we might want to change into
+if(other_s < car_s + 20 and other_s > car_s - 15)
+{
+  if(other_lane == lane-1)
+  {
+    left_car_too_close = true;
+  }
+  else if(other_lane == lane+1)
+  {
+    right_car_too_close = true;
+  }
+}
+```
 
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
+We check further in front of our car to prevent us from changing lanes and then getting stuck behind another slow moving car. This happened a number of times when the unsafe window was smaller and lead to instances of unsafe driving decisions made by the car. The 35 meter no go zone might seem fairly large but the sizable window helps to keep safety as the number 1 goal of the vehicle. In the results video linked above there are cases where a lane change into a faster lane might have been possible for the car but doing so would have been risky due to the presence of other cars. 
 
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
+In order to actually change lanes the lane value of our car is simply incremented or decremented if the don't change lanes flags have not been set. This can be seen in the code below.
 
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+``` c++
+// If conditions are right then change lanes. Prioritize left lane changes
+if(left_car_too_close == false and lane != 0)
+{
+  lane--;
+}
+else if(right_car_too_close == false and lane != 2)
+{
+  lane++;
+}
+```
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+Left lane changes are checked for first as it is the common rule of the road to pass on the left. 
 
+If the car_in_front flag was set then our vehicle must slow down in order to prevent a collision with the car in front of it. To do this I just decreased the velocity used to generate points during the path generation portion of the code. This lower velocity leads to the 50 generated points being closer together which in turn causes the car to drive slower. The code for this can be seen below.
+
+``` c++
+// Decrease our speed if there's a car close in front of us 
+if(car_in_front)
+{
+  target_vel -= .336;
+}
+// Increase speed if we have open road and are below the limit
+else if(target_vel < max_vel)
+{
+  target_vel += .336;
+}
+```
+
+Included in this code is the logic to speed back up if we are below our max velocity and have no other cars in front of us. This gradual acceleration combined with the the starting velocity of 0 m/s helps to fix the issue with the car instantly reaching it's max velocity during the beginning of the simulation. 
+
+
+## Acknowledgements
+As mentioned previously the spline library was a crucial part of my project for generating a drivable path for the car. I also referred to the Q&A video included with the project to help with some of the issues I was having with path generation. 

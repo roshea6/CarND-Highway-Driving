@@ -191,25 +191,12 @@ int main() {
                 if(other_lane == lane-1)
                 {
                   left_car_too_close = true;
-//                   num_cars_left++;
                 }
                 else if(other_lane == lane+1)
                 {
                   right_car_too_close = true;
-//                   num_cars_right++;
                 }
               }
-//               else
-//               {
-//                 if(other_lane == lane-1)
-//                 {
-//                   num_cars_left++;
-//                 }
-//                 else if(other_lane == lane+1)
-//                 {
-//                   num_cars_right++;
-//                 }
-//               }
             }
             // If conditions are right then change lanes. Prioritize left lane changes
             if(left_car_too_close == false and lane != 0)
@@ -327,7 +314,7 @@ int main() {
           // Choose target distance in front of the car
           double target_x = 30.0;
           double target_y = sp(target_x);
-          // Calculate the distance using the pythagoreum theorum
+          // Calculate the distance using the pythagorean theorum
           double target_dist = sqrt(pow(target_x, 2) + pow(target_y, 2));
           
           // x location in front of the car. Will be updated for every new point
@@ -351,7 +338,7 @@ int main() {
             // Update the x location with the newly calculated point
             x_loc = x_point;
             
-            // DIFFERENT FROM REF_X AND REF_Y. ref_x and ref_y should hold the first points on the path whether they are from the car's position or the las point in the previous path
+            // DIFFERENT FROM REF_X AND REF_Y. ref_x and ref_y should hold the first points on the path whether they are from the car's position or the last point in the previous path
             double x_ref = x_point;
             double y_ref = y_point;
             
